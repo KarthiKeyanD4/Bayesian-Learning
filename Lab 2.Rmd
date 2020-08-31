@@ -1,0 +1,271 @@
+---
+title: "Lab 2 - Bayesian Learning"
+author: |
+  | Sreenand Sasikumar - sresa472
+  | Karthikeyan Devarajan  - karde799
+date: "4/24/2020"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(mvtnorm)
+library(glmnet)
+temperature_data <- read.delim("TempLinkoping.txt")
+```
+
+# 1.Linear and Polynomial Regression  
+*The dataset TempLinkoping.txt contains daily temperatures (in Celcius degrees) at Malmslätt, Linköping over the course of the year 2016 (366 days since 2016 was a leap year). The response variable is temp and the covariate is*   
+$$time = \frac{the~number~of~days~since~beginning~of~year}{366}$$  
+*The task is to perform a Bayesian analysis of a quadratic regression*  
+$temp = \beta_0 + \beta_1.time+\beta_2.time^2+\varepsilon$ where $\varepsilon \stackrel{iid} \sim  N(0,\sigma^2)$  
+*a) Determining the prior distribution of the model parameters. Use the conjugate prior for the linear regression model.Your task is to set the prior hyperparameters $\mu_o,\Omega_o, \nu_o$ and $\sigma_o^2$ to sensible values. Start with $\mu_o = (-10, 100, -100)^T$,$\Omega_o = 0.01I3$, $\nu_o = 4$ and $\sigma_o^2 = 1$ Check if this prior agrees with your prior opinions by simulating draws from the joint prior of all parameters and for every draw compute the regression curve. This gives a collection of regression curves, one for each draw from the prior. Do the collection of curves look reasonable? If not, change the prior hyperparameters until the collection of prior regression curves agrees with your prior beliefs about the regression curve. [Hint: the R package mvtnorm will be handy. And use your $Inv-\chi^2$ simulator from Lab 1.]*  
+
+``````{r,echo=FALSE}
+set.seed(12345)
+quad_model <- lm(temp ~ poly(time,2),data = temperature_data)
+predict_temp <- predict(quad_model,temperature_data)
+cat("The coeffiecients are:",quad_model$coefficients)
+plot(temperature_data$time,temperature_data$temp,type='l',xlab="Time",ylab="Temperature",main = "Time Vs Temperature") 
+lines(temperature_data$time,predict_temp,col="red")
+legend("topright", c("Original Value","Predicted Value"), lty = 1, col = c(1,2),cex=0.6)
+```  
+
+*a) Conjugate Prior*  
+The linear regression will have normal distributed prior and posterior. In a linear regression model, $Y = X\beta + \varepsilon$, where $\varepsilon$ is error.  
+Generally the bayesian formula,    
+$$p(\theta|Y) \propto p(Y|\theta).p(\theta)$$    
+Here in this problem,    
+$$p(\beta,\sigma^2,X | Y) \propto p(Y|\beta,\sigma^2)p(\beta,\sigma^2)$$  
+
+
+The Likelihood is normally distributed i.e)  
+$$p(Y|\beta,\sigma^2,X) \sim N(X\beta,\sigma^2I)$$     
+$$p(Y|\beta,\sigma^2,X) = \frac{1}{(\sqrt{2\pi\sigma^2})^n}exp\bigg(\frac{-1}{2\sigma^2}(Y-X\beta)^T(Y-X\beta)\bigg)$$ 
+
+$$p(Y|\beta,\sigma^2,X) \propto exp\bigg(\frac{-1}{2\sigma^2}(Y-X\beta)^T(Y-X\beta)\bigg)$$    
+*Prior*  
+$$p(\beta,\sigma^2) \propto p(\beta|\sigma^2).p(\sigma^2)$$  
+
+$p(\beta|\sigma^2)$ is normally distributed therefore,    
+
+$$p(\beta|\sigma^2) \sim N(\mu_o,\sigma^2.\Omega_o^{-1})$$     
+
+$$p(\beta,\sigma^2) \propto \exp\bigg(-\frac{1}{2\sigma^2}.(
+\beta-\mu_o)^T.\Omega_o.(\beta - \mu_o)\bigg)$$  
+
+The chi-square distributon is same as gamma distribution with $\alpha = \frac{\nu}{2}$ and $\beta = \frac{1}{2}$  
+
+$$p(\sigma^2) \sim Scaled-Inv-\chi^2(\nu,\sigma^2_0)$$ 
+$$p(\sigma^2) = \frac{(\nu/2)^{\nu/2}}{\Gamma(\nu/2)}\sigma^2(\nu/2+1)exp\bigg(\frac{-\nu\sigma_o^2}{2\sigma^2}\bigg) $$  
+$$p(\sigma^2) \propto exp\bigg(\frac{-\nu\sigma_o^2}{2\sigma_o^2}\bigg) $$
+Therefore the posterior can be defined as,
+$$p(\beta,\sigma^2,X | Y) \propto exp\bigg(\frac{-1}{2\sigma^2}(Y-X\beta)^T(Y-X\beta)\bigg)\exp\bigg(-\frac{1}{2\sigma^2}.(
+\beta-\mu_o)^T.\Omega_o.(\beta - \mu_o)\bigg).exp\bigg(\frac{-\nu\sigma_o^2}{2\sigma_o^2}\bigg)$$   
+
+```{r,echo=FALSE}
+set.seed(12345)
+n <- length(temperature_data$time)
+mu_o <- c(-10,100,-100)
+sigma_o <- 1
+nu_o <- 4
+betas_prior <- function(x,y) {
+  initial_sigma <- rchisq(x,nu_o)
+  sigma <- sigma_o * nu_o/ initial_sigma
+  beta <- t(sapply(sigma, function(x) rmvnorm(1,mu_o,sigma*solve(omega_o))))
+  X <- matrix(c(rep(1,length(y)),y,x2=y^2),ncol = 3)
+  predicted_values <- matrix(1,ncol=3,nrow = 366)
+  for(i in 1:ncol(beta)){
+    predicted_values[,i] <- X %*% beta[i,]
+  }
+  prior_output <- list(prior = beta,predict_value = predicted_values)
+  return(prior_output)
+}
+```
+  
+```{r,echo=FALSE}
+set.seed(12345)
+omega_o <- diag(3)*0.01
+prior_beta <- betas_prior(3,temperature_data$time)
+MSE <- numeric(3)
+for(i in 1:3) {
+  MSE[i] <- abs(sum(temperature_data$time-prior_beta$predict_value[,i])/366)
+  plot(temperature_data$time,temperature_data$temp,type='l',xlab="Time",ylab="Temperature",main="Predicted and Observed value",ylim = c(-40,40),col="red")
+  lines(temperature_data$time, prior_beta$predict_value[,i],col="blue")
+  legend("topleft",legend=c("Original values","Predicted Values"),col=c("red","blue"),lty=1,cex=.6)
+}
+cat("The beta values are:\n")
+prior_beta$prior
+cat("The MSE vaue is:\n")
+MSE
+```
+  
+```{r,echo=FALSE}
+set.seed(12345)
+omega_o <- diag(3)*2
+prior_beta <- betas_prior(3,temperature_data$time)
+for(i in 1:3) {
+  MSE[i] <- abs(sum(temperature_data$time-prior_beta$predict_value[,i])/366)
+  plot(temperature_data$time,temperature_data$temp,type='l',xlab="Time",ylab="Temperature",main="Predicted and Observed value",ylim = c(-40,40),col="red",)
+  lines(temperature_data$time, prior_beta$predict_value[,i],col="blue")
+  legend("topleft",legend=c("Original values","Predicted Values"),col=c("red","blue"),lty=1,cex=.6)
+}
+cat("The beta values are:\n")
+prior_beta$prior
+cat("The MSE vaue is:\n")
+MSE
+```
+  The MSE decreased when the omega is increased.Omega is a diagonal matrix.The hyperparameters are updated based on the initial parameter value and the input parameters.    
+  
+*b) Write a program that simulates from the joint posterior distribution of $\beta_0,\beta_1,\beta_2$ and $\sigma^2$.Plot the marginal posteriors for each parameter as a histogram.Also produce another figure with a scatter plot of the temperature data and overlay a curve for the posterior median of the regression function $f(time) = \beta_0 + \beta_1time + \beta_2 time^2$,computed for every value of time. Also overlay curves for the lower 2.5% and upper 97.5% posterior credible interval for f(time).That is, compute the 95% equal tail posterior probability intervals for every value of time and then connect the lower and upper limits of the interval by curves. Does the interval bands contain most of the data points? Should they?*  
+
+
+```{r,echo=FALSE}
+X <- matrix(c( rep(1,n), temperature_data$time, temperature_data$time^2 ),ncol = 3)
+y <- temperature_data$temp
+beta_hat <- solve(t(X)%*%X) %*% t(X) %*% y
+omega <- as.matrix(t(X)%*%X) + omega_o
+mu <- solve(t(X)%*%X + omega_o) %*% (t(X)%*%X%*%beta_hat + omega_o%*%mu_o)
+nu <- nu_o + n
+sigma <- as.numeric(nu_o %*% sigma_o + (t(y) %*% y + t(mu_o)%*%omega_o%*%mu_o - t(mu)%*%omega%*%mu))
+f <- sigma*solve(omega)
+betas_posterior <- function(x,y) {
+  sample_chisq <- rchisq(x,nu)
+  sigma <- sigma*nu / sample_chisq 
+  beta <- t(sapply(sigma,function(x) rmvnorm(1,mu,f)))
+  X <- matrix(c( rep(1,366), y,y^2),ncol = 3)
+  predicted_values <- matrix(1,ncol=3,nrow = 366)
+  for(i in 1:ncol(beta)){
+    predicted_values[,i] <- X %*% beta[i,]
+  }
+  return(list(beta=beta,sigma=sigma,predict_temp=predicted_values))
+}
+set.seed(12345)
+posterior_beta <- betas_posterior(3,y)
+
+density_beta <- density(c(posterior_beta$beta,posterior_beta$sigma))
+N <- length(density_beta$y)
+x <- seq(0,100,length.out=N)
+y <- cumsum(density_beta$y[order(density_beta$y)]) / sum(density_beta$y)* 100
+plot(x,y,type="l",main = "Density of the model")
+lines(x[which(y <= 5)],y[which(y <= 5)], col= "black")
+lines(x[which(y >= 95)],y[which(y >= 95)], col= "black")
+polygon(c(0,x[which(y <= 5)],max(x[which(y <= 5)])),c(0,y[which(y <= 5)],0), col ="red")
+polygon(c(min(x[-c(which(y <= 5),which(y >= 95))]),x[-c(which(y <= 5),which(y >= 95))],max(x[-c(which(y <= 5),which(y >= 95))])),c(0,y[-c(which(y <= 5),which(y >= 95))],0), col ="blue")
+legend("topleft", legend=c("f(time)","credebile interval(95%)"),lty=c(1,1),col=c("black","blue"),cex=.7)
+```
+*c) It is of interest to locate the time with the highest expected temperature (that is, the time where $f(time)$ is maximal). Let's call this value $x$. Use the simulations in b) to simulate from the posterior distribution of $x$. [Hint: the regression curve is a quadratic. You can find a simple formula for $x$ given $\beta_o$,$\beta_1$,$\beta_2$]*  
+```{r,echo=FALSE}
+function_time <- posterior_beta$beta[,2]/(-2*posterior_beta$beta[3])
+max(function_time)
+```
+  
+The maximal can be found by equating the derivation of the function to zero and taking the maximum value from it.  
+
+*d) Say now that you want to estimate a polynomial model of order 7, but you suspect that higher order terms may not be needed, and you worry about overfitting. Suggest a suitable prior that mitigates this potential problem. You do not need to compute the posterior, just write down your prior. [Hint: the task is to specify $\mu_o$ and $\Omega_o$ in a smart way.]*  
+
+The overfitting can be contolled by the shrinkage/regularization term. The beta for regression formula is  
+$$ \beta|\sigma^2 \sim N(\mu_o,\sigma^2.\Omega_o^{-1})$$ 
+The omega is a diagonal matrix of lambda.  
+$\Omega = \lambda * I$  
+when lambda is increases, the regularization term will decrease. From the above relation, the $\mu_n$ and $\Omega_n$ are influenced by $\lambda$.  
+  
+# Question 2  
+*a) Consider the logistics regression*  
+$$Pr(y=1|x) = \frac{exp(x^T\beta)}{1+exp(x^T\beta)}$$  
+*where y is the binary variable with y = 1 if the woman works and y = 0 if she does not. x is a 8-dimensional vector containing the eight features (including a one for the constant term that models the intercept). Fit the logistic regression using maximum likelihood estimation by the command: glmModel <- glm(Work ~ 0 + ., data = WomenWork, family = binomial). Note how I added a zero in the model formula so that R doesn't add an extra intercept (we already have an intercept term from the Constant feature). Note also that a dot (.) in the model formula means to add all other variables in the dataset as features. family = binomial tells R that we want to fit a logistic regression*  
+```{r,echo=FALSE}
+WomenWork <- read.table("WomenWork.dat",header=TRUE)
+glmModel <- glm(Work ~ 0 + ., data = WomenWork, family = binomial)
+prob <- ifelse(glmModel$fitted.values>0.5,1,0)
+```
+
+*b) Now ,the fun begins. Our goal is to approximate  the posterior distribution of the 8-dim parameter vector ?? with a multivariate normal distribution*  
+$$\beta|y,X \sim N(\tilde\beta,J_y^{-1}(\tilde\beta))$$
+*where $\tilde\beta$ is the posterior and $J(\tilde\beta) = \frac{\partial^2 ln p(\beta|y)}{\partial\beta\partial\beta^T}|_{\beta=\tilde\beta}$ is the observed Hessian evaluated at the posterior mode. Note that $\frac{\partial^2 ln p(\beta|y)}{\partial\beta\partial\beta^T}$ is a 8x8 matrix with the second derivates and cross derivative $\frac{\partial^2 ln p(\beta|y)}{\partial\beta_j\partial\beta_j^T}$ on diff disgonal. It is actually not to hard to compute this derivative by hand, but don't worry, we will let the computer do it numerically for you. Now, both $\tilde\beta$ and $\tilde\beta$ are computed by the optim function in R. See my code https://github.com/mattiasvillani/BayesLearnCourse/raw/master/Code/MainOptimizeSpam.zip where I have coded everything up for the spam prediction example (it also does probit regression, but that is not needed here). I want you to implement you own version of this. You can use my code as a template, but I want you to write your own file so that you understand every line of your code. Don't just copy my code. Use the prior $\beta \sim N(0,\tau^2I)$, with $\tau = 10$.Your report should include your code as well as numerical values for $\tilde\beta$ and $J_y^{-1}(\tilde\beta)$ for the WomenWork data. Compute an approximate 95% credible interval for the variable NSmallChild. Would you say that this feature is an important determinant of the probability that a women works?*
+  
+
+```{r,echo=FALSE}
+tau <- 10
+y <- as.vector(WomenWork[,1]) 
+X <- as.matrix(WomenWork[,3:9])
+covNames <- names(WomenWork)[2:length(names(WomenWork))]
+X <- X[,c(1:7)]
+covNames <- covNames[c(2:7)]
+nPara <- dim(X)[2]
+mu <- as.vector(rep(0,nPara))
+Sigma <- tau^2*diag(nPara)
+LogPostLogistic <- function(betaVect,y,X,mu,Sigma){
+  nPara <- length(betaVect);
+  linPred <- X%*%betaVect;
+  logLik <- sum( linPred*y -log(1 + exp(linPred)))
+  if (abs(logLik) == Inf) logLik = -20000
+  logPrior <- dmvnorm(betaVect, matrix(0,nPara,1), Sigma, log=TRUE)
+  return(logLik + logPrior)
+}
+initVal <- as.vector(rep(0,dim(X)[2]))
+logPost <- LogPostLogistic
+OptimResults<-optim(initVal,logPost,gr=NULL,y,X,mu,Sigma,method=c("BFGS"),control=list(fnscale=-1),hessian=TRUE)
+
+postMode <- OptimResults$par
+postCov <- -solve(OptimResults$hessian) # Posterior covariance matrix is -inv(Hessian)
+names(postMode) <- covNames # Naming the coefficient by covariates
+approxPostStd <- sqrt(diag(postCov)) # Computing approximate standard deviations.
+names(approxPostStd) <- covNames # Naming the coefficient by covariates
+print('The posterior mode is:')
+print(postMode)
+print('The approximate posterior standard deviation is:')
+print(approxPostStd)
+par(mfrow = c(2,2))
+for (k in 1:4){
+  betaGrid <- seq(0, postMode[k] + 4*approxPostStd[k], length = 1000)
+  plot(betaGrid, dnorm(x = betaGrid, mean = postMode[k], sd = approxPostStd[k]), type = "l", lwd = 2, main = names(postMode)[k], ylab = '', xlab = expression(beta))
+}
+```
+
+Confidence Interval of 95% for Number of small childrens.  
+
+```{r,echo=FALSE}
+density <- density(WomenWork$NSmallChild)
+N <- length(density$y)
+x <- seq(0,100,length.out=N)
+y <- cumsum(density$y[order(density$y)]) / sum(density$y)* 100
+plot(x,y,type="l",main = "Density of Number of Small Childs")
+lines(x[which(y <= 5)],y[which(y <= 5)], col= "red")
+lines(x[which(y >= 95)],y[which(y >= 95)], col= "red")
+polygon(c(0,x[which(y <= 5)],max(x[which(y <= 5)])),c(0,y[which(y <= 5)],0), col ="red")
+polygon(c(min(x[-c(which(y <= 5),which(y >= 95))]),x[-c(which(y <= 5),which(y >= 95))],max(x[-c(which(y <= 5),which(y >= 95))])),c(0,y[-c(which(y <= 5),which(y >= 95))],0), col ="blue")
+legend("topleft", legend=c("Number of small Childs","credebile interval(95%)"),lty=c(1,1),col=c("black","blue"),cex=.7)
+```
+  
+*c) Write a function that simulates from the predictive distribution of the response variable in a logistic regression. Use your normal approximation from 2(b). Use that function to simulate and plot the predictive distribution for the Work variable for a 40 year old woman, with two children (3 and 9 years old), 8 years of education, 10 years of experience. and a husband with an income of 10. [Hint: the R package mvtnorm will again be handy. And remember my discussion on how Bayesian prediction can be done by simulation.]*  
+
+```{r,echo=FALSE} 
+Work <- c(10,8,10,1,40,1,1)
+Beta_PostMode <- rmvnorm(1000,mean=postMode,sigma=postCov)
+Y_pred <- matrix(Work,nrow=1)%*%t(Beta_PostMode)
+Log_Y_pred <- exp(Y_pred)/(1+exp(Y_pred))
+density <- density(Log_Y_pred)
+N <- length(density$y)
+x <- seq(0,100,length.out=N)
+y <- cumsum(density$y[order(density$y)]) / sum(density$y)* 100
+plot(x,y,type="l",main = "Density of Log Beta Posterior")
+lines(x[which(y <= 5)],y[which(y <= 5)], col= "black")
+lines(x[which(y >= 95)],y[which(y >= 95)], col= "black")
+polygon(c(0,x[which(y <= 5)],max(x[which(y <= 5)])),c(0,y[which(y <= 5)],0), col ="red")
+polygon(c(min(x[-c(which(y <= 5),which(y >= 95))]),x[-c(which(y <= 5),which(y >= 95))],max(x[-c(which(y <= 5),which(y >= 95))])),c(0,y[-c(which(y <= 5),which(y >= 95))],0), col ="blue")
+legend("topleft", legend=c("Log Beta Posterior","credebile interval(95%)"),lty=c(1,1),col=c("black","blue"),cex=.7)
+
+```
+
+# Appendix
+```{r ref.label=knitr::all_labels(), echo = T, eval = F}
+```
+# Reference
+1.https://math.stackexchange.com/questions/3342462/bayesian-linear-regression-conjugate-prior  
+2.http://www.stat.columbia.edu/~fwood/Teaching/w4315/Fall2009/bayesian_linear_regression.pdf  
+3.https://www.mathworks.com/help/econ/what-is-bayesian-linear-regression.html#bvj1dzd
+
+

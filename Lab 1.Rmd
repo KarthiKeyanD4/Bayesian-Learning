@@ -1,0 +1,394 @@
+---
+title: "Lab1 - Bayesian Learning"
+author: |
+  | Sreenand Sasikumar - sresa472
+  | Karthikeyan Devarajan  - karde799
+date: "4/13/2020"
+output:
+  pdf_document: default
+  html_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE,}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# 1 Bernoulli... again  
+Let $y_1, ..., y_n|\theta \sim Bern(\theta)$, and assume that you have obtained a sample with $s = 5$ successes in $n = 20$ trials. Assume a Beta$(\alpha_o, \beta_o)$ prior for $\theta$ and let $\alpha_o = \beta_o= 2$.  
+
+$$y_1,...y_n|\theta\sim Bern(\theta)$$
+
+**Likelihood**
+
+We are given sample of $n = 20$ independent trials, resulting in $s = 5$ successes.
+
+$$s = \sum_i x_i = 5$$
+
+$$f = n-s = 15$$
+
+Likelihood function of Beta-Bernoulli is obtained as:
+
+$$p(y_1,...,y_n|\theta) = \theta^s(1-\theta)^f = \theta^5(1-\theta)^{15}$$
+
+**Prior**  
+
+In this case, we will be assuming $\theta$ is beta-distributed $\theta\sim Beta(\alpha_0,\beta_0)$ where  $\alpha_0,\beta_0 = 2$.  
+Prior is generally defined as:  
+$$p(\theta|\alpha_0,\beta_0) = \frac{1}{B(\alpha_0,\beta_0)}\theta^{\alpha_0-1}(1-\theta)^{\beta_0-1}$$
+we know that  
+$$B(\alpha_0,\beta_0) = \frac{\Gamma(\alpha_0)\Gamma(\beta_0)}{\Gamma(\alpha_0 + \beta_0)}$$
+When we substitute, $B(\alpha_0,\beta_0)$ in prior equation we will get   
+
+$$p(\theta) = \frac{\Gamma(\alpha_0 + \beta_0)}{\Gamma(\alpha_0)\Gamma(\beta_0)}\theta^{\alpha_0 - 1} (1 - \theta)^{\beta_0 - 1} $$  
+$$p(\theta) = \frac{4!}{2!2!}\theta^1(1-\theta)^1 = 6\theta^1(1-\theta)^1$$
+
+**Posterior**
+
+Posterior distribution is defined as follows   
+
+$$p(\theta|y_1,...,y_n) \propto p(\theta)~p(y_1,...,y_n|\theta)$$  
+
+$$p(\theta|y_1,...,y_n) = 6\theta^1(1-\theta)^1\theta^{5} (1 - \theta)^{15} = 6\theta^{6}(1-\theta)^{16}$$  
+
+Here, $\alpha$ and $\beta$ is considered to be 6 and 16 from the above equation. Therefore the above equation can be rewritten as  
+$$p(\theta|y_1,...,y_n) = \frac{21!}{6!16!}\theta^{6}(1-\theta)^{16}$$  
+
+where LHS can be considered as $Beta(7,17)$  
+
+Hence,  
+
+$$p(\theta|y_1,...,y_n) \propto Beta(7,17)$$
+
+The properties of $Beta(7,17)$, in particular mean and standard deviation are
+
+$$\mu_{Beta(7,17)} = \frac{\alpha}{\alpha+\beta} = \frac{7}{24} = 0.29166$$
+
+$$\sigma_{Beta(7,17)} = \sqrt{\frac{\alpha(\beta)}{(\alpha+\beta)^2(\alpha+\beta+1)}}$$  
+$$\sigma_{Beta(7,17)} = \sqrt{\frac{7(17)}{(24)^2(25)}} = \sqrt{0.0082} \simeq 0.0909$$  
+$\sigma_{Beta(7,17)} \simeq 0.0909$
+
+*(a) Draw random numbers from the posterior $\theta|y \sim \beta(\alpha_o + s, \beta_o + f), y = (y_1,..,y_n)$, and verify graphically that the posterior mean and standard deviation converges to the true values as the number of random draws grows large.*    
+
+From the above solutions,we shall draw random numbers from the posterior $\theta|y \sim Beta(7,17)$.
+
+
+```{r,echo=FALSE}
+actual_mean = 0.29166
+actual_sd = 0.0909
+Posterior_values <- function(n) {
+  thetha_samples <- rbeta(n,7,17)
+  return(thetha_samples)
+}
+Posterior_graph <- function(samples) {
+  b <- min(length(samples)/2,30)
+  hist(samples,breaks=b,freq = FALSE,
+       xlab="Samples",main="Histogram of posterior samples")
+  lines(density(samples))
+  abline(v=mean(samples),col="red",lwd=3)
+}
+```
+
+```{r,echo=FALSE}
+set.seed(12345)
+posterior100 <- Posterior_values(100)
+cat("sample mean", mean(posterior100),"\n")
+cat("sample standard deviation",sd(posterior100), "\n")
+cat("Difference between actual mean",abs(mean(posterior100) - actual_mean),"and actual standard deviation",abs(sd(posterior100) - actual_sd),"\n")
+Posterior_graph(posterior100)
+```
+
+```{r,echo=FALSE}
+posterior1000 <- Posterior_values(1000)
+cat("sample mean", mean(posterior1000),"\n")
+cat("sample standard deviation",sd(posterior1000), "\n")
+cat("Difference between actual mean",abs(mean(posterior1000) - actual_mean),"and actual standard deviation",abs(mean(posterior1000) - actual_sd),"\n")
+Posterior_graph(posterior1000)
+```
+
+```{r,echo=FALSE}
+posterior10000 <- Posterior_values(10000)
+cat("sample mean", mean(posterior10000),"\n")
+cat("sample standard deviation",sd(posterior10000), "\n")
+cat("Difference between actual mean",abs(mean(posterior10000) - actual_mean),"and actual standard deviation",abs(sd(posterior10000) - actual_sd),"\n")
+Posterior_graph(posterior10000)
+```
+
+```{r,echo=FALSE}
+set.seed(12345)
+samples = list()
+sample_mean = numeric()
+sample_sd = numeric()
+for(i in 1:500){
+samples[[i]] <- Posterior_values(i) 
+}
+for(i in 1:500){
+sample_mean[i] <- mean(samples[[i]]) 
+}
+for(i in 1:500){
+sample_sd[i] <- sd(samples[[i]]) 
+}
+```
+
+```{r,echo=FALSE,}
+plot(1:500, sample_mean, type="l",xlab="Number of Thetha",ylab="mean of thethas", main="mean distribution",col="blue")
+abline(h=actual_mean,col="red")
+legend("bottomright",legend=c("Thetha Mean","Actual mean"),col=c("blue","red"),lty=1,cex=.7)
+```
+
+```{r,echo=FALSE}
+plot(1:500, sample_sd, type="l",xlab="Number of Thetha",ylab="standard deviation of thethas", main="Standard Deviation Distribution",col="blue")
+abline(h=actual_sd,col="red")
+legend("bottomright",legend=c("Sample standard deviation","Actual standard deviation"),col=c("blue","red"),lty=1,cex=.7)
+```
+
+*b) Use simulation (nDraws = 10000) to compute the posterior probability $Pr(\theta > 0.3|y)$ and compare with the exact value [Hint: pbeta()].*  
+
+```{r,echo=FALSE}
+set.seed(12345)
+posterior_sample <- Posterior_values(1000)
+sample_probability <- sum(posterior_sample > 0.3) / 1000
+cat("The probability of the thetha values is",sample_probability,"\n")
+actual_probability <- 1 - pbeta(.3,7,17)
+cat("The probability of the actual distribution is",actual_probability,"\n")
+cat("The difference between actual probability and sample probability",abs(sample_probability - actual_probability),"\n")
+```
+
+*c) Compute the posterior distribution of the log-odds $\phi = log{\frac{\theta}{1-\theta}}$ by simulation (nDraws = 10000). [Hint: hist() and density() might come in handy]*  
+
+```{r,echo=FALSE}
+posterior_sample <- Posterior_values(10000)
+log_odd <- sapply(posterior_sample, function(x) log(x/(1-x)) )
+hist(log_odd,breaks=30,freq = FALSE,xlab="Samples",main="Histogram of posterior(Log_Odd)")
+lines(density(log_odd))
+abline(v=mean(log_odd),col="red",lwd=3)
+```
+  
+The Log-odd is also known as Logit which converts the range of the samples from [0:1] to $[-\infty:\infty]$.  
+# 2 Log-normal distibution and the Gini coefficient    
+*a)Assume that you have asked 10 randomly selected persons about their monthly income (in thousands Swedish Krona) and obtained the following ten observations: 44,25, 45, 52, 30, 63, 19, 50, 34 and 67. A common model for non-negative continuous variables is the log-normal distribution. The log-normal distribution $(logN (\mu,\sigma^2)$ has density function*  
+
+The log-normal distribution $p(y|\mu,\sigma^2)$ with parameters $\mu,\sigma^2$ is defined as
+
+$$p(y|\mu,\sigma^2)=\frac{1}{y.\sigma.\sqrt{2\pi}}\exp[-\frac{1}{2.\sigma^2}.(\log{y}-\mu)]$$
+for $y > 0, \mu > 0$ and $\sigma^2 > 0$. 
+*The log-normal distribution is related to the normal distribution as follows: if $y \sim logN(\mu,\sigma^2)$ then $logy \sim N (\mu, \sigma^2)$. Let $(y_1,...,y_n|\mu,\sigma^2)\sim log N (\mu, \sigma^2)$,where $\mu = 3.7$ is assumed to be known but $\sigma^2$ is unknown with non-informative prior $p(\sigma^2) \propto 1/\sigma^2$.The posterior for $\sigma^2$ is the $Inv\chi^2(n,\tau^2)$ distribution, where*  
+
+$\tau^2 = \frac{\sum_{i=1}^n(\log y_i-\mu)^2}{n}$. 
+
+From the given values $\mu = 3.7$, $\sigma^2$ is to be found.
+
+Log-normally distributed variable $y\sim \log N(\mu,\sigma^2)$ which can be also converted as $\log y\sim N(\mu,\sigma^2)$.  
+
+**Likelihood**  
+
+$$p(\log y|\mu,\sigma^2)=L(\mu,\sigma^2|y) $$
+
+$$ L(\mu,\sigma^2|y) = \prod_{i=1}^n\frac{1}{y_i.\sigma.\sqrt{2\pi}}\exp.[-\frac{1}{2\sigma^2}(\log{y_i}-\mu)^2]$$
+The following equation is obtained by rearranging the equation.  
+
+$$L(\mu,\sigma^2|y) = (\frac{1}{2\pi\sigma^2})^{n/2}\prod_{i=1}^n(y_i^{-1})\exp[\frac{1}{2\sigma^2}\sum_{i=1}^n(\log y_i-\mu)^2]$$  
+Generally,$$\sigma = {\sum_{i=1}^n(y_i-\mu)^2}/n$$. So, this can be rearranged and substituted in the above equation  
+
+$$L(\mu,\sigma^2|y) = (\frac{1}{2\pi\sigma^2})^{n/2}\prod_{i=1}^n(y_i^{-1})\exp[\frac{1}{2\sigma^2}nS^2]$$
+
+
+When the log-normally is differentiated with respect to $\sigma$ and equalled to zero.    
+
+$$\frac{dl}{d\sigma^2}=-\frac{n}{2\sigma^2}+\frac{1}{2\sigma^4}.S =0$$  
+
+$$\sigma^2=S/n$$  
+**Prior**    
+
+$$p(\sigma^2)\propto \frac{1}{\sigma^2}$$
+**Posterior**  
+
+$$p(\sigma^2|\log y) \propto p(\sigma^2) p(\log y|\mu,\sigma^2)$$
+
+$$p(\sigma^2|\log y)\propto \frac{1}{\sigma^{2n}(2\pi)^{n/2}} \prod_{i=1}^n(y_i^{-1})\exp[-\frac{n}{2\sigma^2}S^2]$$  
+
+
+$$p(\sigma^2|\log y)\propto \frac{\exp[-\frac{n}{2\sigma^2}S^2]}{\sigma^{2n}}$$
+Posterior for $\sigma^2$ is proportional to scaled inverse chi-squared distribution $Scale-inv-\chi^2(n,\tau^2)$  
+
+with $n$ chi-squared degrees of freedom and scaling parameter $\tau^2$.
+
+$$p(\sigma^2|y) \propto Scale-inv-\chi^2(n,\tau^2)$$
+
+$$\tau^2=\sigma^2$$
+
+Theoretical mean of scaled inverse chi-squared distribution can be computed as $$\mu_{\chi^2} = \frac{n\tau^2}{n-2}$$  
+
+```{r,echo=FALSE}
+observed_value <-c(44, 25, 45, 52, 30, 63, 19, 50, 34, 67)
+observedvalue_log <- log(observed_value)
+mu <- 3.7
+n <- length(observed_value)
+```
+
+Given the data, we can estimate their sample statistics, sample mean $\bar{x}$ and sample variance $S^2$. For sample variance we can use known population mean $\mu = 3.7$.  
+
+```{r,echo=FALSE}
+mean_sample <- mean(observedvalue_log)
+cat("The mean of the sample is",mean_sample,"\n")
+sd_sample <- sum((observedvalue_log-mu)^2)/length(observedvalue_log)
+cat("The standard deviation of the sample is",sd_sample,"\n")
+```
+
+We use the sample variance to compute theoretical mean. Since the distribution is $\chi^2(10,\frac{1}{0.15}) = \chi^2(10,6.6)$, the theoretical posterior mean is
+
+$$\mu_{\chi^2} = \frac{n\tau^2}{n-2} = \frac{10(6.6)}{8} = 8.3$$
+
+*a) Simulate 10, 000 draws from the posterior of $\sigma^2$ (assuming $\mu$ = 3.7) and compare with the theoretical $Inv - \chi^2(n,\tau^2)$ posterior distribution.*  
+
+For the purposes of simulation we have generator of chi-square distribution.Output can be then transformed to inversed chi-squared distribution and then to scale inversed chi-squared distribution using following formulas.
+
+$$X \sim \chi^2(\nu)$$   
+$$\frac{1}{X}\sim Inv-\chi^2(\nu)$$  
+
+$$X \sim Scale-inv-\chi^2(\nu,\tau^2)$$    
+$$\frac{X}{\tau^2\nu} \sim inv-\chi^2(\nu)$$  
+
+```{r,echo=FALSE}
+N <- 10000
+tau <- sd_sample
+```
+
+Hence we can derive following.
+
+$$X \sim \chi^2(\nu)$$  
+
+$$\frac{\tau^2\nu}{X} \sim Scale-inv-\chi^2(\nu,\tau^2)$$  
+
+
+```{r,echo=FALSE}
+set.seed(12345)
+samples_chisq <- rchisq(N,n)
+samples_invchisq_scaled <- tau * n / samples_chisq
+samples_mean <- mean(samples_invchisq_scaled)
+cat("The mean of inverse chi-square-values",samples_mean,"\n")
+d <- density(samples_invchisq_scaled)
+plot(d,main="Density of posterior values",xlab="sigma")
+abline(v=samples_mean, col="red")
+```
+  
+*b) The most common measure of income inequality is the Gini coefficient, G, where $0 \leq G \leq 1$. G = 0 means a completely equal income distribution, whereas G = 1 means complete income inequality. See Wikipedia for more information. It can be shown that $G = 2\Phi\frac{\sigma}{\sqrt{2}} - 1$ when incomes follow a $logN(\mu,\sigma^2)$ distribution. $\Phi(z)$ is the cumulative distribution function (CDF) for the standard normal distribution with mean zero and unit variance. Use the posterior draws in a) to compute the posterior distribution of the Gini coefficient G for the current data set*
+
+Gini coefficient $G$ shows income inequality. For $\sigma \sim log\mathcal{N}(\mu,\sigma^2)$
+we define $G$ with following equation, where $\Phi(z)$ is CDF of standard normal distribution $\mathcal{N}(\mu=0,\sigma^2=1)$
+
+$$G = 2\Phi(\frac{\sigma}{\sqrt{2}})-1$$
+
+```{r,echo=FALSE}
+set.seed(12345)
+Gini_coefficient <- 2 * pnorm(sqrt(samples_invchisq_scaled)/sqrt(2),0,1) - 1
+hist(Gini_coefficient,breaks=50,probability=T,main="Distribution of Gini Coefficient for log-normal")
+lines(density(Gini_coefficient),col="red",lty=1)
+abline(v=mean(Gini_coefficient), col="blue")
+```
+
+*c) Use the posterior draws from b) to compute a 90% equal tail credible interval for G. A 90% equal tail interval (a, b) cuts off 5% percent of the posterior probability mass to the left of a, and 5% to the right of b. Also, do a kernel density estimate of the posterior of G using the density function in R with default settings, and use that kernel density estimate to compute a 90% Highest Posterior Density interval for G. Compare the two intervals*
+
+Cutting 5% of the data from both tails of the cumulative curve we can estimate the 90% credible intervals.The both tails are considered to be maximum and minimum of the distribution.    
+
+```{r,echo=FALSE}
+set.seed(12345)
+Density_gini <- density(Gini_coefficient)
+N <- length(Density_gini$y)
+x <- seq(0,100,length.out=N)
+y <- cumsum(Density_gini$y[order(Density_gini$y)]) / sum(Density_gini$y)* 100
+cred_lower<- max(x[which(y <= 5)])
+cred_upper<- min(x[which(y >= 95)])
+plot(x,y,type="l")
+lines(x[which(y <= 5)],y[which(y <= 5)], col= "red")
+lines(x[which(y >= 95)],y[which(y >= 95)], col= "red")
+polygon(c(0,x[which(y <= 5)],max(x[which(y <= 5)])),c(0,y[which(y <= 5)],0), col ="red")
+polygon(c(min(x[-c(which(y <= 5),which(y >= 95))]),x[-c(which(y <= 5),which(y >= 95))],max(x[-c(which(y <= 5),which(y >= 95))])),c(0,y[-c(which(y <= 5),which(y >= 95))],0), col ="blue")
+polygon(c(min(x[which(y >= 95)]),x[which(y >= 95)],max(x[which(y >= 95)])),c(0,y[which(y >= 95)],0), col ="red")
+legend("topleft", legend=c("Log-normal curve","credebile interval(90%)"),lty=c(1,1),col=c("black","blue"),cex=.7)
+```
+    
+The two tails will have the maximum and minimum five percentage of the distribution. So, both credible limits are measured after ordering the y and seperated as above.  
+  
+```{r,echo=FALSE}
+outlier <-x[which(y <= 10)]
+accept <-x[which(y > 10)]
+accept_y <- y[which(y > 10)]
+outlier_y <- y[which(y <= 10)]
+cred_limit <- min(x[which(y > 10)])
+plot(x,y,type="l", ylab="Income", xlab="cumulative share")
+lines(outlier,outlier_y, col= "red")
+polygon(c(0,outlier,max(outlier)),c(0,outlier_y,0), col ="red")
+polygon(c(min(accept),accept,max(accept)),c(0,accept_y,0), col ="blue")
+legend("topleft", legend=c("log-normal curve","credebile interval(90%)"),
+       lty=c(1,1),col=c("black","blue"),cex=.7)
+```
+
+# 3 Bayesian inference
+*Bayesian inference for the concentration parameter in the von Mises distribution. This exercise is concerned with directional data. The point is to show you that the posterior distribution for somewhat weird models can be obtained by plotting it over a grid of values. The data points are observed wind directions at a given location on ten different days. The data are recorded in degrees:*  
+ (40, 303, 326, 285, 296, 314, 20, 308, 299, 296)  
+*where North is located at zero degrees (see Figure 1 on the next page, where the angles are measured clockwise). To fit with Wikipedias description of probability distributions for circular data we convert the data into radians $-\pi\leq y \leq \pi$. The 10 observations in radians are*
+(-2.44, 2.14, 2.54, 1.83, 2.02, 2.33, -2.79, 2.23, 2.07, 2.02)  
+*Assume that these data points are independent observations following the von Mises distribution*    
+$$p(y|\mu,k) = \frac{exp(k.cos(y - \mu))}{2\pi I_0(k)}$$  
+
+*where $I_o(k)$ is the modified Bessel function of the first kind of order zero [see ?besselI in R]. The parameter $\mu$ is $(-\pi \leq \mu \leq \pi)$ is the mean direction and $k > 0$ is called the concentration parameter. Large $k$ gives a small variance around $\mu$, and vice versa. Assume that $\mu$ is known to be 2.39. Let $k \sim Exponential(\lambda = 1)$ a prior, where $\lambda$ is the rate parameter of the exponential distribution (so that the mean is $\frac{1}{\lambda}$)*    
+
+We are given a timeseries of wind direction observation at given place in ten different days.
+
+```{r,echo=FALSE}
+degrees <- c(40,303,326,285,296,314,20,308,299,296)
+radians <- c(-2.44,2.14,2.54,1.83,2.02,2.33,-2.79,2.23,2.07,2.02)
+plot(radians, xlab="Days", ylab="Wind orientation")
+abline(0,0,lty=1, col="red")
+```
+
+**Likelihood**
+These are independent observation following the von Mises distribution with concentration parameter $k > 0$ and mean $-\pi \leq \mu \leq \pi$.
+
+$$p(y|\mu,k) = \frac{exp(k.cos(y - \mu))}{2\pi I_0(k)}$$
+$$p(y|\mu,k) =\prod_{i=1}^n \frac{exp(k.cos(y_i-\mu))}{2\pi I_0(k)} $$  
+$$p(y|\mu,k) = \frac{exp(k\sum_{i=1}^ncos(y_i-\mu))}{(2\pi I_0(k))^n}$$
+Here $I_0(k)$ denotes modified Bessel function of the first kind of order 0. Value of parameter $\mu$ is given, $\mu = 2.39$, $k$ is to be estimated. Large $k$ gives a small variance around $\mu$ and vice versa.
+
+**Prior**  
+
+Prior assumption is that parameter $k$ follows exponential distribution.
+
+$$k \sim Exponential(\lambda=1)$$
+$$p(k) = e^{-k}$$
+**Posterior**  
+
+$$p(k|y) \propto p(y|\mu,k)p(k)$$  
+$$p(k|y) \propto \exp(k.\frac{\sum_{i=1}^n\cos(y_i-\mu))}{(2\pi I_0(k))^n} \exp(-k)$$
+
+$$p(k|y) \propto exp (k.\frac{(\sum_{i=1}^ncos(y_i-\mu)-1))}{(2\pi I_0(k))^n}$$  
+
+*a) Plot the posterior distribution of k for the wind direction data over a fine grid of k values*
+```{r,echo=FALSE}
+Posterior <- function(y, mu,k) {
+  return(exp(k*(sum(cos(y-mu)) - 1))/(2*pi*besselI(k,0))^length(y))
+}
+radian_mean <- 2.39
+k_values <- seq(0,10,length.out = 10000)
+posterior_values <- sapply(k_values,function(k) Posterior(radians,radian_mean,k))
+max_index <- which(posterior_values == max(posterior_values))
+max_k_values <- k_values[max_index]
+prob_value <- posterior_values[max_index]
+cat("The maximum k value is",max_k_values,"\n")
+```
+*b)  Find the (approximate) posterior mode of k from the information in a)*  
+```{r,echo=FALSE}
+y_value = posterior_values[which(abs(k_values - radian_mean)==min(abs(k_values - radian_mean)))]
+plot(k_values, posterior_values,type="l",xlab="K",ylab="Posterior values",main="K vs Posterior Values")
+points(max_k_values,prob_value,col="red",pch=19)
+text(max_k_values,prob_value,labels=round(max_k_values,4),pos=1,cex=.6)
+abline(v=radian_mean,col="blue",pch=1)
+legend("topright",legend=c("Max_value","Mean"),lty=c(NA,1),pch=c(19,NA), cex=.7,col=c("red","blue"))
+```
+# Appendix
+```{r ref.label=knitr::all_labels(), echo = T, eval = F}
+```
+
+
+

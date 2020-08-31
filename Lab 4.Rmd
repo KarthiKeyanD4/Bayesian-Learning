@@ -1,0 +1,227 @@
+---
+title: "Lab 4"
+author: "Karthikeyan Devarajan"
+date: "5/23/2020"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(rstan)
+```
+
+# Question 1: Time series models in Stan  
+*a) Write a function in R that simulates data from the AR(1)-process*  
+$x_t = \mu + \phi(x_{t-1} - \mu) + \epsilon_t$, $\epsilon_t \sim N(0,\sigma^2)$  
+*for given values of $\mu, \phi$ and $\sigma^2$. Start the process at $x_1 = \mu$ and then simulate values for $x_t$for $t = 2,3,...,T$ and return the vector $x_1:T$ containing all time points. Use $\mu = 10$, $sigma^2 = 2$and $T = 200$ and look at some different realizations (simulations) of $x_1:T$ for values of $\phi$ between $[-1:1]$ (this is the interval of $\phi$ where the AR(1)-process is stable). Include a plot of at least one realization in the report. What effect does the value of $\phi$ have on $x_1:T$*  
+
+The AR(1)-process is defined as 
+$x_t = \mu + \phi(x_{t-1} - \mu) + \epsilon_t$ where $\epsilon_t \sim N(0,\sigma^2)$.
+$x_t =\mu$, $t=2:T$
+
+We have to find 
+```{r,echo=FALSE,warning=FALSE}
+set.seed(12345)
+mu <- 10
+sigma <- 2
+t <- 200
+phi <- seq(-1,1,0.02)
+AR_phi<-function(mu,Sigma,phi,t){
+  xt <- numeric(t)
+  xt[1]=mu
+  for(i in 2:t){
+    xt[i]=mu+phi*(xt[i-1]-mu)+rnorm(1,0,sqrt(Sigma))
+  }
+  return(xt)
+}
+f <- list()
+for(i in 1:length(phi)){
+f[[i]] <- AR_phi(mu,sigma,phi[i],t)
+}
+plot(1:200,f[[1]],type="o",ylab=paste("x_t for",phi[[1]]))
+plot(1:200,f[[101]],type="o",ylab=paste("x_t for",phi[[101]]))
+x <- sapply(f,FUN = mean)
+plot(1:101,x,type="l",ylab="The mean of AR",main="Mean of AR for phi(-1,1)")
+```
+  
+The Mean of AR values generated increases when phi value is close to 1. The AR value revolves around 0, when phi value is small but the AR value revolved around 10. The increase in phi value will increase the values of AR values generated.  
+
+*b)Use your function from a) to simulate two AR(1)-processes, $[x1:T]$ with $\phi = 0.3$ and $y_1:T$ with $\phi = 0.95$. Now, treat your simulated vectors as synthetic data, and treat the values of $\mu, \phi$ and $\sigma^2$ as unknown and estimate them using MCMC. Implement Stan-code that samples from the posterior of the three parameters, using suitable non-informative priors of your choice. [Hint: Look at the time-series models examples in the Stan users guide/reference manual, and note the different parameterization used here.]*  
+
+*i) Report the posterior mean, 95% credible intervals and the number of effective posterior samples for the three inferred parameters for each of the simulated AR(1)-process. Are you able to estimate the true values?*  
+
+```{r,echo=FALSE}
+MCMC_model='
+data{
+int<lower=0> N;
+vector[N] y;
+}
+parameters{
+real mu;
+real<lower=0> sigma;
+real phi;
+}
+model{
+for(n in 2:N){
+y[n] ~ normal(mu + phi*(y[n-1]-mu), sqrt(sigma));
+}
+}'
+```
+  
+When $\phi$ is 0.3  
+
+```{r,echo=FALSE,warning=FALSE}
+AR_0.3 = AR_phi(mu,sigma,0.3,t)
+data_0.3 <- list(N = t,y=AR_0.3)
+fit.mod_0.3 <- stan(model_code = MCMC_model,data = data_0.3,chains = 1,iter = 2000,cores = 2)
+model_stats_0.3 <- extract(fit.mod_0.3)
+```
+
+
+```{r,echo=FALSE}
+mu_quantile = quantile(model_stats_0.3$mu,probs = c(0.025,0.975))
+sigma_quantile = quantile(model_stats_0.3$sigma,probs = c(0.025,0.975))
+phi_quantile = quantile(model_stats_0.3$phi,probs = c(0.025,0.975))
+print(data.frame(mu = mu_quantile,sigma = sigma_quantile,phi=phi_quantile))
+
+#Convergence 
+par(mfrow=c(1,2))
+plot(model_stats_0.3$mu,
+     main="Convergence plot for mu with phi 0.3",
+     xlab="mu",type="l")
+plot(model_stats_0.3$sigma,
+     main="Convergence plot for sigma with phi 0.3",
+     xlab="mu",type="l")
+
+```
+  
+The value for 95% CI when phi is 0.3, is shown in the above table.  
+
+When $\phi$ is 0.95
+
+```{r,echo=FALSE,warning=FALSE}
+AR_0.95 = AR_phi(mu,sigma,0.95,t)
+data_0.95 <- list(N = t,y=AR_0.95)
+fit.mod_0.95 <- stan(model_code = MCMC_model,data = data_0.95,chains = 1,iter = 2000,cores = 2)
+model_stats_0.95 <- extract(fit.mod_0.95)
+
+mu_quantile = quantile(model_stats_0.95$mu,probs = c(0.025,0.975))
+sigma_quantile = quantile(model_stats_0.95$sigma,probs = c(0.025,0.975))
+phi_quantile = quantile(model_stats_0.95$phi,probs = c(0.025,0.975))
+print(data.frame(mu = mu_quantile,sigma = sigma_quantile,phi=phi_quantile))
+
+#Convergence 
+par(mfrow=c(1,2))
+plot(model_stats_0.95$mu,
+     main="Convergence plot for mu with phi 0.95",
+     xlab="mu",type="l")
+plot(model_stats_0.95$sigma,
+     main="Convergence plot for sigma with phi 0.95",
+     xlab="mu",type="l")
+```
+  
+*ii) For each of the two data sets, evaluate the convergence of the samplers and plot the joint posterior of $\mu$ and $\phi$. Comments?*  
+
+```{r,echo=FALSE}
+par(mfrow=c(1,2))
+plot(mu~phi,data=fit.mod_0.3,
+    main=expression(paste("Plot joint posterior when",phi,"=0.3")),
+     xlab=expression(mu),ylab=expression(phi))
+
+par(mfrow=c(1,2))
+plot(mu~phi,data=fit.mod_0.95,
+    main=expression(paste("Plot joint posterior when",phi,"=0.95")),
+     xlab=expression(mu),ylab=expression(phi))
+```
+When $\phi$ is 0.3, the AR value is more random than AR value from $\phi$ is 0.95.  
+
+*c) The data campy.dat contain the number of cases of campylobacter infections in the north of the province Quebec (Canada) in four week intervals from January 1990 to the end of October 2000. It has 13 observations per year and 140 observations in total. Assume that the number of infections ct at each time point follows an independent Poisson distribution when conditioned on a latent AR(1)-process $x_t$,that is*   
+$$c_t|x_t \sim Poisson(exp(x_t))$$  
+*where $x_t$ is an AR(1)-process as in a). Implement and estimate the model in Stan, using suitable priors of your choice. Produce a plot that contains both the data and the posterior mean and 95% credible intervals for the latent intensity $\theta = exp(x_t)$ over time. [Hint: Should $x_t$ be seen as data or parameters?]*  
+```{r,echo=FALSE}
+campy <- read.delim(file.choose())
+```
+  
+
+```{r,echo=FALSE}
+poisson_model='
+data{
+int<lower=0> N;
+int y[N];
+}
+parameters{
+real mu ;
+real<lower=0> sigma;
+real<lower=-1, upper=1> phi;
+vector[N] xt;
+}
+model{
+mu ~ normal(0,100); 
+sigma ~ scaled_inv_chi_square(1,2); 
+phi ~ normal(0,1);
+for(n in 2:N){
+xt[n]~normal(mu + phi*(xt[n-1]-mu), sqrt(sigma));
+y[n]~poisson(exp(xt[n]));
+}
+}'
+
+data =list(N=length(campy$c),y=campy$c)
+poisson = stan(model_code = poisson_model,data = data,chains = 1,iter = 2000,cores = 2)
+fit_poisson <- extract(poisson)
+theta <- exp(fit_poisson$xt)
+theta_mean <- apply(theta,2,mean)
+# plotting the graph
+plot(theta_mean,type="l")
+
+# CI
+theta_quantile = quantile(theta_mean,probs = c(0.025,0.975))
+print(as.data.frame(theta_quantile))
+```
+  
+The $x_t$ can be treated as parameter.  
+
+*d) Now, assume that we have a prior belief that the true underlying intensity $\theta_t$ varies more smoothly than the data suggests. Change the prior for $\sigma^2$ so that it becomes informative about that the AR(1)-process increments $\epsilon_t$ should be small. Re-estimate the model using Stan with the new prior and produce the same plot as in c). Has the posterior for $\theta_t$ changed?*  
+
+```{r,echo=FALSE}
+poisson_model='
+data{
+int<lower=0> N;
+int y[N];
+}
+parameters{
+real mu ;
+real<lower=0> sigma;
+real<lower=-1, upper=1> phi;
+vector[N] xt;
+}
+model{
+mu ~ normal(0,100); 
+sigma ~ scaled_inv_chi_square(200,0.1); 
+phi ~ normal(0,1);
+for(n in 2:N){
+xt[n]~normal(mu + phi*(xt[n-1]-mu), sqrt(sigma));
+y[n]~poisson(exp(xt[n]));
+}
+}'
+
+data =list(N=length(campy$c),y=campy$c)
+poisson = stan(model_code = poisson_model,data = data,chains = 1,iter = 2000,cores = 2)
+fit_poisson <- extract(poisson)
+theta <- exp(fit_poisson$xt)
+theta_mean <- apply(theta,2,mean)
+# plotting the graph
+plot(theta_mean,type="l")
+
+# CI
+theta_quantile = quantile(theta_mean,probs = c(0.025,0.975))
+print(as.data.frame(theta_quantile))
+
+```
+ When I changed the prior for sigma, the mean for the thetha that lies in 95% credible intervals has decreased.  
+ 
+# Appendix
+```{r ref.label=knitr::all_labels(), echo = T, eval = F}
+```
+
